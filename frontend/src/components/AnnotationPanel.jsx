@@ -1,7 +1,7 @@
 import { Search, Filter, Edit, Trash2, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
-const AnnotationPanel = ({ isOpen, onToggle }) => {
+const AnnotationPanel = ({ isOpen, onToggle, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
 
