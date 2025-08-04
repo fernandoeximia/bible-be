@@ -1,4 +1,3 @@
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const MainContent = () => {
@@ -7,6 +6,10 @@ const MainContent = () => {
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [fontSize, setFontSize] = useState('base');
   const [isMobile, setIsMobile] = useState(false);
+  const [chapterData, setChapterData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [annotations, setAnnotations] = useState([]);
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -19,228 +22,247 @@ const MainContent = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Dados de exemplo para Gênesis 1
-  const chapterData = {
-    book: 'Gênesis',
-    chapter: 1,
-    verses: [
-      {
-        number: 1,
-        text: 'No princípio, Deus criou os céus e a terra.',
-        annotations: []
-      },
-      {
-        number: 2,
-        text: 'A terra era sem forma e vazia; havia trevas sobre a face do abismo, e o Espírito de Deus pairava sobre as águas.',
-        annotations: []
-      },
-      {
-        number: 3,
-        text: 'Disse Deus: "Haja luz!" E houve luz.',
-        annotations: [{ type: 'highlight', color: 'bg-yellow-200' }]
-      },
-      {
-        number: 4,
-        text: 'Deus viu que a luz era boa. Deus separou a luz das trevas.',
-        annotations: [{ type: 'highlight', color: 'bg-yellow-200' }]
-      },
-      {
-        number: 5,
-        text: 'Deus chamou à luz Dia e às trevas chamou Noite. Houve tarde e manhã, o primeiro dia.',
-        annotations: []
-      },
-      {
-        number: 6,
-        text: 'Disse Deus: "Haja um firmamento no meio das águas, e que ele separe águas de águas."',
-        annotations: []
-      },
-      {
-        number: 7,
-        text: 'Então Deus fez o firmamento e separou as águas que ficaram abaixo do firmamento das que ficaram por cima. E assim foi.',
-        annotations: []
-      },
-      {
-        number: 8,
-        text: 'Deus chamou ao firmamento céu. Houve tarde e manhã: foi o segundo dia.',
-        annotations: []
+  // Load chapter data from API
+  useEffect(() => {
+    const loadChapterData = async () => {
+      try {
+        setLoading(true);
+        // Load Gênesis 1 by default
+        const response = await fetch('/api/books/1/chapters/1');
+        const result = await response.json();
+        
+        if (result.success) {
+          setChapterData(result.data);
+          
+          // Load annotations for this chapter
+          const annotationsResponse = await fetch('/api/annotations');
+          const annotationsResult = await annotationsResponse.json();
+          
+          if (annotationsResult.success) {
+            setAnnotations(annotationsResult.data);
+          }
+        } else {
+          setError(result.error || 'Erro ao carregar capítulo');
+        }
+      } catch (err) {
+        setError('Erro de conexão com o servidor');
+        console.error('Error loading chapter:', err);
+      } finally {
+        setLoading(false);
       }
-    ]
+    };
+
+    loadChapterData();
+  }, []);
+
+  // Get annotations for a specific verse
+  const getVerseAnnotations = (verseId) => {
+    return annotations.filter(annotation => annotation.verse_id === verseId);
   };
 
-  const handleTextSelection = (event) => {
-    // Disable text selection menu on mobile for better UX
-    if (isMobile) return;
+  // Get highlight color for verse
+  const getVerseHighlight = (verseId) => {
+    const verseAnnotations = getVerseAnnotations(verseId);
+    const highlight = verseAnnotations.find(ann => ann.type === 'highlight');
     
-    const selection = window.getSelection();
-    const selectedText = selection.toString().trim();
-    
-    if (selectedText.length > 0) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      
-      setSelectedText(selectedText);
-      setMenuPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.top - 10
-      });
-      setShowAnnotationMenu(true);
-    } else {
-      setShowAnnotationMenu(false);
+    if (highlight && highlight.color) {
+      // Convert hex color to Tailwind-like background
+      const colorMap = {
+        '#FFF3CD': 'bg-yellow-100',
+        '#D4EDDA': 'bg-green-100',
+        '#D1ECF1': 'bg-blue-100',
+        '#F8D7DA': 'bg-red-100',
+        '#E2E3E5': 'bg-gray-100',
+        '#FCF8E3': 'bg-yellow-50'
+      };
+      return colorMap[highlight.color] || 'bg-yellow-100';
     }
+    return '';
   };
 
-  const handleVerseClick = (verse) => {
-    if (isMobile) {
-      // On mobile, show a simplified annotation menu
-      setSelectedText(verse.text);
+  const handleTextSelection = (e, verseNumber) => {
+    const selection = window.getSelection();
+    const text = selection.toString().trim();
+    
+    if (text && text.length > 0) {
+      setSelectedText(text);
+      setMenuPosition({ x: e.clientX, y: e.clientY });
       setShowAnnotationMenu(true);
-      setMenuPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     }
   };
 
   const handleAnnotation = (type, color = null) => {
-    console.log('Annotation:', { type, color, text: selectedText });
+    console.log(`Anotação ${type} criada:`, selectedText);
+    if (color) {
+      console.log('Cor:', color);
+    }
     setShowAnnotationMenu(false);
     setSelectedText('');
   };
 
-  const annotationColors = [
-    { name: 'Amarelo', color: 'bg-yellow-200', value: '#FFF3CD' },
-    { name: 'Verde', color: 'bg-green-200', value: '#D4EDDA' },
-    { name: 'Azul', color: 'bg-blue-200', value: '#CCE5FF' },
-    { name: 'Rosa', color: 'bg-pink-200', value: '#F8D7DA' },
-    { name: 'Laranja', color: 'bg-orange-200', value: '#FFE4B5' },
-    { name: 'Roxo', color: 'bg-purple-200', value: '#E2D9F3' }
-  ];
-
   const fontSizeClasses = {
-    small: 'text-sm md:text-base',
-    base: 'text-base md:text-lg',
-    large: 'text-lg md:text-xl',
-    xlarge: 'text-xl md:text-2xl'
+    sm: 'text-sm',
+    base: 'text-base',
+    lg: 'text-lg',
+    xl: 'text-xl'
   };
 
-  return (
-    <main className="flex-1 bg-white overflow-y-auto">
-      <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
-        {/* Chapter Header */}
-        <div className="text-center mb-6 md:mb-8">
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-serif font-bold text-gray-800 mb-1 md:mb-2">
-            {chapterData.book}
-          </h1>
-          <h2 className="text-lg md:text-xl lg:text-2xl font-serif text-gray-600">
-            Capítulo {chapterData.chapter}
-          </h2>
-        </div>
-
-        {/* Font Size Controls - Mobile */}
-        <div className="md:hidden mb-4 flex items-center justify-center space-x-2">
-          <span className="text-xs text-gray-500">Aa</span>
-          <div className="flex space-x-1">
-            {Object.keys(fontSizeClasses).map((size) => (
-              <button
-                key={size}
-                onClick={() => setFontSize(size)}
-                className={`w-8 h-8 rounded-full text-xs font-medium transition-colors ${
-                  fontSize === size
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                }`}
-              >
-                {size === 'small' ? 'S' : size === 'base' ? 'M' : size === 'large' ? 'L' : 'XL'}
-              </button>
-            ))}
+  if (loading) {
+    return (
+      <div className="flex-1 p-4 md:p-6 bg-white overflow-y-auto">
+        <div className="max-w-4xl mx-auto">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded mb-4 w-1/3"></div>
+            <div className="space-y-3">
+              {[...Array(10)].map((_, i) => (
+                <div key={i} className="h-4 bg-gray-200 rounded w-full"></div>
+              ))}
+            </div>
           </div>
-          <span className="text-lg text-gray-500">Aa</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 p-4 md:p-6 bg-white overflow-y-auto">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="text-red-800 font-medium">Erro ao carregar conteúdo</h3>
+            <p className="text-red-600 mt-1">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!chapterData) {
+    return (
+      <div className="flex-1 p-4 md:p-6 bg-white overflow-y-auto">
+        <div className="max-w-4xl mx-auto">
+          <p className="text-gray-500">Nenhum conteúdo disponível</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 p-4 md:p-6 bg-white overflow-y-auto">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+              {chapterData.book.name}
+            </h1>
+            <p className="text-lg text-gray-600">Capítulo {chapterData.number}</p>
+          </div>
+          
+          {/* Font size controls - Mobile */}
+          {isMobile && (
+            <div className="flex items-center gap-2 mt-4 md:mt-0">
+              <span className="text-sm text-gray-600">Fonte:</span>
+              {['sm', 'base', 'lg', 'xl'].map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setFontSize(size)}
+                  className={`px-2 py-1 rounded text-xs font-medium ${
+                    fontSize === size
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {size === 'sm' ? 'S' : size === 'base' ? 'M' : size === 'lg' ? 'L' : 'XL'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Verses */}
-        <div className="space-y-3 md:space-y-4" onMouseUp={handleTextSelection}>
-          {chapterData.verses.map((verse) => (
-            <div key={verse.number} className="flex group">
-              {/* Verse Number */}
-              <span className="text-xs md:text-sm font-bold text-gray-400 mr-3 md:mr-4 mt-1 min-w-[1.5rem] md:min-w-[2rem] select-none flex-shrink-0">
-                {verse.number}
-              </span>
-              
-              {/* Verse Text */}
-              <div className="flex-1">
-                <p 
-                  className={`${fontSizeClasses[fontSize]} leading-relaxed font-serif text-gray-800 cursor-text ${
-                    verse.annotations.length > 0 ? verse.annotations[0].color : ''
-                  } ${isMobile ? 'select-none' : ''}`}
-                  onClick={() => handleVerseClick(verse)}
-                >
-                  {verse.text}
-                </p>
-                
-                {/* Mobile Annotation Button */}
-                {isMobile && (
-                  <button
-                    onClick={() => handleVerseClick(verse)}
-                    className="mt-2 flex items-center space-x-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
-                  >
-                    <Plus className="h-3 w-3" />
-                    <span>Anotar</span>
-                  </button>
-                )}
+        <div className="space-y-4">
+          {chapterData.verses.map((verse) => {
+            const highlight = getVerseHighlight(verse.id);
+            const verseAnnotations = getVerseAnnotations(verse.id);
+            
+            return (
+              <div
+                key={verse.number}
+                className={`flex gap-4 p-3 rounded-lg transition-colors ${highlight} hover:bg-gray-50`}
+                onMouseUp={(e) => handleTextSelection(e, verse.number)}
+              >
+                <span className="text-blue-600 font-bold text-sm md:text-base min-w-[2rem] flex-shrink-0">
+                  {verse.number}
+                </span>
+                <div className="flex-1">
+                  <p className={`${fontSizeClasses[fontSize]} leading-relaxed text-gray-800 font-serif`}>
+                    {verse.text}
+                  </p>
+                  
+                  {/* Show annotations */}
+                  {verseAnnotations.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {verseAnnotations.map((annotation) => (
+                        annotation.note_text && (
+                          <div key={annotation.id} className="text-sm text-gray-600 italic bg-gray-50 p-2 rounded">
+                            📝 {annotation.note_text}
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Navigation */}
-        <div className="mt-8 md:mt-12">
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex justify-center items-center space-x-8">
-            <button className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors">
-              <ChevronLeft className="h-5 w-5" />
-              <span>Anterior</span>
-            </button>
-            
-            <div className="flex items-center space-x-4">
-              <button className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-600 transition-colors">
-                1
+        {/* Chapter Navigation */}
+        <div className="flex justify-center items-center gap-4 mt-8 pt-6 border-t">
+          <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+            <span>←</span>
+            <span className="hidden md:inline">Anterior</span>
+          </button>
+          
+          <div className="flex gap-2">
+            {[1, 2, 3].map((num) => (
+              <button
+                key={num}
+                className={`w-8 h-8 rounded ${
+                  num === 1
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                }`}
+              >
+                {num}
               </button>
-              <button className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                2
-              </button>
-              <button className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-600 transition-colors">
-                3
-              </button>
-            </div>
-            
-            <button className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors">
-              <span>Próximo</span>
-              <ChevronRight className="h-5 w-5" />
-            </button>
+            ))}
           </div>
+          
+          <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+            <span className="hidden md:inline">Próximo</span>
+            <span>→</span>
+          </button>
+        </div>
 
-          {/* Mobile Navigation */}
-          <div className="md:hidden">
-            <div className="flex justify-between items-center mb-4">
-              <button className="flex items-center space-x-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors">
-                <ChevronLeft className="h-4 w-4" />
-                <span>Anterior</span>
-              </button>
-              
-              <div className="flex items-center space-x-2">
-                <button className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm text-gray-600 transition-colors">
-                  1
-                </button>
-                <button className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm">
-                  2
-                </button>
-                <button className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm text-gray-600 transition-colors">
-                  3
-                </button>
+        {/* Recent Readings */}
+        <div className="mt-8 pt-6 border-t">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Leituras Recentes</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { book: 'Gênesis', chapter: '1', verses: '17' },
+              { book: 'João', chapter: '3', verses: '16' },
+              { book: 'Salmos', chapter: '23', verses: '6' }
+            ].map((reading, index) => (
+              <div
+                key={index}
+                className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+              >
+                <h4 className="font-medium text-gray-900">{reading.book} {reading.chapter}</h4>
+                <p className="text-sm text-gray-600">{reading.verses} versículos</p>
               </div>
-              
-              <button className="flex items-center space-x-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors">
-                <span>Próximo</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -248,76 +270,43 @@ const MainContent = () => {
       {/* Annotation Menu */}
       {showAnnotationMenu && (
         <div
-          className={`fixed bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50 ${
-            isMobile ? 'inset-x-4 top-1/2 transform -translate-y-1/2' : ''
-          }`}
-          style={!isMobile ? {
-            left: menuPosition.x - 150,
-            top: menuPosition.y - 120
-          } : {}}
+          className="fixed bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50"
+          style={{ left: menuPosition.x, top: menuPosition.y }}
         >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700">Adicionar Anotação</h3>
-            {isMobile && (
-              <button
-                onClick={() => setShowAnnotationMenu(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ×
-              </button>
-            )}
-          </div>
-          
-          {/* Selected Text Preview for Mobile */}
-          {isMobile && (
-            <div className="mb-3 p-2 bg-gray-50 rounded text-sm text-gray-600 max-h-20 overflow-y-auto">
-              {selectedText.length > 100 ? selectedText.substring(0, 100) + '...' : selectedText}
-            </div>
-          )}
-          
-          {/* Highlight Colors */}
-          <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-2">Destacar:</p>
-            <div className={`grid ${isMobile ? 'grid-cols-3' : 'flex'} gap-2`}>
-              {annotationColors.map((color) => (
-                <button
-                  key={color.value}
-                  onClick={() => handleAnnotation('highlight', color.value)}
-                  className={`${isMobile ? 'w-full h-8' : 'w-6 h-6'} rounded ${color.color} border border-gray-300 hover:scale-110 transition-transform flex items-center justify-center`}
-                  title={color.name}
-                >
-                  {isMobile && <span className="text-xs font-medium">{color.name}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex space-x-2'}`}>
+          <div className="flex gap-2 mb-2">
             <button
-              onClick={() => handleAnnotation('note')}
-              className="px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Adicionar Nota
-            </button>
+              onClick={() => handleAnnotation('highlight', '#FFF3CD')}
+              className="w-6 h-6 bg-yellow-200 rounded border hover:scale-110 transition-transform"
+              title="Destacar em amarelo"
+            />
             <button
-              onClick={() => handleAnnotation('bookmark')}
-              className="px-3 py-2 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-            >
-              Marcar
-            </button>
+              onClick={() => handleAnnotation('highlight', '#D4EDDA')}
+              className="w-6 h-6 bg-green-200 rounded border hover:scale-110 transition-transform"
+              title="Destacar em verde"
+            />
+            <button
+              onClick={() => handleAnnotation('highlight', '#D1ECF1')}
+              className="w-6 h-6 bg-blue-200 rounded border hover:scale-110 transition-transform"
+              title="Destacar em azul"
+            />
           </div>
+          <button
+            onClick={() => handleAnnotation('note')}
+            className="w-full text-left px-2 py-1 text-sm hover:bg-gray-100 rounded"
+          >
+            📝 Adicionar nota
+          </button>
         </div>
       )}
 
-      {/* Mobile Overlay */}
-      {showAnnotationMenu && isMobile && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40"
+      {/* Click outside to close menu */}
+      {showAnnotationMenu && (
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => setShowAnnotationMenu(false)}
         />
       )}
-    </main>
+    </div>
   );
 };
 
