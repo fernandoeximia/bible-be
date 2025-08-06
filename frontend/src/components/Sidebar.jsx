@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, X, ChevronDown, ChevronRight } from 'lucide-react';
 
-const Sidebar = ({ isOpen, onClose }) => {
+const Sidebar = ({ isOpen, onClose, onBookSelect }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedTestament, setExpandedTestament] = useState('old');
+  const [expandedTestament, setExpandedTestament] = useState('Antigo Testamento');
 
   // Load books from API
   useEffect(() => {
@@ -43,10 +43,17 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const handleBookClick = (book) => {
     console.log('Livro selecionado:', book.name);
-    // Here you would typically navigate to the book
+    // Navigate to first chapter of the book
+    if (onBookSelect) {
+      onBookSelect(book.id, 1, book.name);
+    }
     if (window.innerWidth < 768) {
       onClose();
     }
+  };
+
+  const toggleTestament = (testament) => {
+    setExpandedTestament(expandedTestament === testament ? null : testament);
   };
 
   if (loading) {
@@ -133,16 +140,18 @@ const Sidebar = ({ isOpen, onClose }) => {
             {/* Old Testament */}
             <div className="p-4">
               <button
-                onClick={() => setExpandedTestament(expandedTestament === 'old' ? '' : 'old')}
+                onClick={() => toggleTestament('Antigo Testamento')}
                 className="w-full flex items-center justify-between p-3 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors mb-2"
               >
                 <span className="font-medium text-purple-800">ANTIGO TESTAMENTO</span>
                 <span className="text-purple-600">
-                  {expandedTestament === 'old' ? '−' : '+'}
+                  {expandedTestament === 'Antigo Testamento' ? 
+                    <ChevronDown size={16} /> : <ChevronRight size={16} />
+                  }
                 </span>
               </button>
               
-              {expandedTestament === 'old' && (
+              {expandedTestament === 'Antigo Testamento' && (
                 <div className="space-y-1 ml-2">
                   {oldTestamentBooks.map((book) => (
                     <button
@@ -165,16 +174,18 @@ const Sidebar = ({ isOpen, onClose }) => {
             {/* New Testament */}
             <div className="px-4 pb-4">
               <button
-                onClick={() => setExpandedTestament(expandedTestament === 'new' ? '' : 'new')}
+                onClick={() => toggleTestament('Novo Testamento')}
                 className="w-full flex items-center justify-between p-3 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors mb-2"
               >
                 <span className="font-medium text-blue-800">NOVO TESTAMENTO</span>
                 <span className="text-blue-600">
-                  {expandedTestament === 'new' ? '−' : '+'}
+                  {expandedTestament === 'Novo Testamento' ? 
+                    <ChevronDown size={16} /> : <ChevronRight size={16} />
+                  }
                 </span>
               </button>
               
-              {expandedTestament === 'new' && (
+              {expandedTestament === 'Novo Testamento' && (
                 <div className="space-y-1 ml-2">
                   {newTestamentBooks.map((book) => (
                     <button

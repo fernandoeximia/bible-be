@@ -1,9 +1,12 @@
-import { Search, Settings, BookOpen, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { Search, Menu, BookOpen, ChevronDown, X, Settings } from 'lucide-react';
 
-const Header = ({ onToggleSidebar, onToggleAnnotations }) => {
+const Header = ({ onToggleSidebar, onToggleAnnotations, currentBookName, currentChapter, onSearch }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -11,6 +14,77 @@ const Header = ({ onToggleSidebar, onToggleAnnotations }) => {
 
   const toggleSearch = () => {
     setIsSearchExpanded(!isSearchExpanded);
+  };
+
+  const handleSearchChange = async (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    try {
+      setIsSearching(true);
+      // Use quick search endpoint
+      const response = await fetch(`/api/search/quick?q=${encodeURIComponent(query)}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        if (result.data.verses) {
+          // Text search results
+          setSearchResults([{
+            type: 'verses',
+            data: result.data.verses.slice(0, 5)
+          }]);
+        } else if (result.data.book) {
+          // Reference search result
+          setSearchResults([{
+            type: 'reference',
+            data: result.data
+          }]);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchSelect = (result) => {
+    if (result.type === 'reference') {
+      // Navigate to the reference
+      if (onSearch) {
+        onSearch({
+          type: 'reference',
+          book: result.data.book,
+          chapter: result.data.chapter,
+          verses: result.data.verses
+        });
+      }
+    } else if (result.type === 'verses') {
+      // Navigate to first verse result
+      if (result.data.length > 0) {
+        const firstVerse = result.data[0];
+        if (onSearch) {
+          onSearch({
+            type: 'verse',
+            book: firstVerse.book,
+            chapter: firstVerse.chapter_num,
+            verse: firstVerse.verse_num
+          });
+        }
+      }
+    }
+    
+    setSearchQuery('');
+    setSearchResults([]);
+    setIsSearchExpanded(false);
   };
 
   return (
@@ -31,19 +105,78 @@ const Header = ({ onToggleSidebar, onToggleAnnotations }) => {
             {/* Logo/Brand */}
             <div className="flex items-center space-x-2">
               <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400" />
-              <h1 className="text-lg sm:text-2xl font-bold">BIBLE-BE</h1>
+              <div>
+                <h1 className="text-lg sm:text-2xl font-bold">BIBLE-BE</h1>
+                {currentBookName && (
+                  <p className="text-xs text-gray-300 hidden sm:block">
+                    {currentBookName} {currentChapter}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Center Section - Search Bar (Desktop) */}
-          <div className="hidden md:flex flex-1 max-w-2xl mx-8">
+          <div className="hidden md:flex flex-1 max-w-2xl mx-8 relative">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
-                placeholder="Buscar versículo ou texto..."
+                placeholder="Buscar versículo (ex: João 3:16) ou texto..."
+                value={searchQuery}
+                onChange={handleSearchChange}
                 className="w-full pl-10 pr-4 py-2 bg-white text-gray-900 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              
+              {/* Search Results Dropdown */}
+              {searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
+                  {searchResults.map((result, index) => (
+                    <div key={index}>
+                      {result.type === 'reference' && (
+                        <div className="p-3 border-b border-gray-100">
+                          <div className="font-semibold text-gray-900 mb-2">
+                            {result.data.book.name} {result.data.chapter}
+                          </div>
+                          {result.data.verses.map((verse, vIndex) => (
+                            <button
+                              key={vIndex}
+                              onClick={() => handleSearchSelect(result)}
+                              className="block w-full text-left p-2 hover:bg-gray-50 rounded text-sm text-gray-700"
+                            >
+                              <span className="font-medium">{verse.verse_num}.</span> {verse.text.substring(0, 100)}...
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {result.type === 'verses' && (
+                        <div className="p-3">
+                          <div className="font-semibold text-gray-900 mb-2">Resultados da busca</div>
+                          {result.data.map((verse, vIndex) => (
+                            <button
+                              key={vIndex}
+                              onClick={() => handleSearchSelect(result)}
+                              className="block w-full text-left p-2 hover:bg-gray-50 rounded text-sm text-gray-700"
+                            >
+                              <span className="font-medium">{verse.reference}</span>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {verse.text.substring(0, 100)}...
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {isSearching && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-3 z-50">
+                  <div className="text-gray-500 text-sm">Buscando...</div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -93,9 +226,48 @@ const Header = ({ onToggleSidebar, onToggleAnnotations }) => {
             <input
               type="text"
               placeholder="Buscar versículo ou texto..."
+              value={searchQuery}
+              onChange={handleSearchChange}
               className="w-full pl-9 pr-4 py-2 bg-white text-gray-900 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               autoFocus
             />
+            
+            {/* Mobile Search Results */}
+            {searchResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50">
+                {searchResults.map((result, index) => (
+                  <div key={index}>
+                    {result.type === 'reference' && result.data.verses.map((verse, vIndex) => (
+                      <button
+                        key={vIndex}
+                        onClick={() => handleSearchSelect(result)}
+                        className="block w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 text-sm text-gray-700"
+                      >
+                        <div className="font-medium text-blue-600">
+                          {result.data.book.name} {result.data.chapter}:{verse.verse_num}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {verse.text.substring(0, 80)}...
+                        </div>
+                      </button>
+                    ))}
+                    
+                    {result.type === 'verses' && result.data.map((verse, vIndex) => (
+                      <button
+                        key={vIndex}
+                        onClick={() => handleSearchSelect(result)}
+                        className="block w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 text-sm text-gray-700"
+                      >
+                        <div className="font-medium text-blue-600">{verse.reference}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {verse.text.substring(0, 80)}...
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
