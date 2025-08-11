@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
@@ -10,6 +10,71 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
+  
+  // Navigation state
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedChapter, setSelectedChapter] = useState(1);
+  const [selectedVerse, setSelectedVerse] = useState(null);
+  const [selectedAnnotation, setSelectedAnnotation] = useState(null);
+
+  // Load default book (Genesis) on app start
+  useEffect(() => {
+    const loadDefaultBook = async () => {
+      try {
+        const response = await fetch('/api/books');
+        const data = await response.json();
+        
+        if (data.success && data.data.length > 0) {
+          // Find Genesis or use first book
+          const genesis = data.data.find(book => book.name === 'Gênesis') || data.data[0];
+          setSelectedBook(genesis);
+          setSelectedChapter(1);
+        }
+      } catch (error) {
+        console.error('Error loading default book:', error);
+      }
+    };
+
+    loadDefaultBook();
+  }, []);
+
+  // Handle book selection from sidebar
+  const handleBookSelect = (book, chapter = 1) => {
+    setSelectedBook(book);
+    setSelectedChapter(chapter);
+    // Close sidebar on mobile after selection
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  // Handle chapter navigation
+  const handleChapterChange = (book, chapter) => {
+    setSelectedBook(book);
+    setSelectedChapter(chapter);
+  };
+
+  // Handle search navigation
+  const handleSearch = (searchResult) => {
+    console.log('Search result:', searchResult);
+    
+    if (searchResult.type === 'reference') {
+      // Navigate to reference result
+      setSelectedBook(searchResult.book);
+      setSelectedChapter(searchResult.chapter);
+    } else if (searchResult.type === 'verse') {
+      // Navigate to specific verse
+      setSelectedBook(searchResult.book);
+      setSelectedChapter(searchResult.chapter);
+    }
+  };
+
+  // Handle annotation click
+  const handleAnnotationClick = (verse, annotation) => {
+    setSelectedVerse(verse);
+    setSelectedAnnotation(annotation);
+    setIsAnnotationPanelOpen(true);
+  };
 
   // Detect screen size
   useEffect(() => {
@@ -133,6 +198,9 @@ function App() {
       <Header 
         onToggleSidebar={toggleSidebar}
         onToggleAnnotations={toggleAnnotationPanel}
+        currentBookName={selectedBook?.name || 'Carregando...'}
+        currentChapter={selectedChapter}
+        onSearch={handleSearch}
       />
       
       {/* Main Layout */}
@@ -141,17 +209,27 @@ function App() {
         <Sidebar 
           isOpen={isSidebarOpen}
           onClose={closeSidebar}
+          onBookSelect={handleBookSelect}
+          selectedBook={selectedBook}
+          selectedChapter={selectedChapter}
         />
 
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
-          <MainContent />
+          <MainContent 
+            selectedBook={selectedBook}
+            selectedChapter={selectedChapter}
+            onChapterChange={handleChapterChange}
+            onAnnotationClick={handleAnnotationClick}
+          />
           
           {/* Annotation Panel */}
           <AnnotationPanel 
             isOpen={isAnnotationPanelOpen} 
             onToggle={toggleAnnotationPanel}
             onClose={closeAnnotationPanel}
+            selectedVerse={selectedVerse}
+            selectedAnnotation={selectedAnnotation}
           />
         </div>
       </div>
@@ -168,10 +246,17 @@ function App() {
             </button>
             
             <div className="flex space-x-2">
-              <button className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+              <button 
+                onClick={() => selectedBook && handleChapterChange(selectedBook, Math.max(1, selectedChapter - 1))}
+                disabled={selectedChapter <= 1}
+                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+              >
                 ← Cap
               </button>
-              <button className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+              <button 
+                onClick={() => selectedBook && handleChapterChange(selectedBook, selectedChapter + 1)}
+                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+              >
                 Cap →
               </button>
             </div>
@@ -199,23 +284,24 @@ function App() {
             </button>
             
             <div className="flex items-center space-x-4">
-              <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+              <button 
+                onClick={() => selectedBook && handleChapterChange(selectedBook, Math.max(1, selectedChapter - 1))}
+                disabled={selectedChapter <= 1}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+              >
                 ← Capítulo Anterior
               </button>
               
               <div className="flex items-center space-x-2">
-                <button className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm text-gray-600 transition-colors">
-                  1
-                </button>
-                <button className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm">
-                  2
-                </button>
-                <button className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm text-gray-600 transition-colors">
-                  3
-                </button>
+                <span className="text-sm text-gray-600">
+                  Capítulo {selectedChapter}
+                </span>
               </div>
               
-              <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+              <button 
+                onClick={() => selectedBook && handleChapterChange(selectedBook, selectedChapter + 1)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+              >
                 Próximo Capítulo →
               </button>
             </div>
